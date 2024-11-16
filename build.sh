@@ -24,10 +24,8 @@ fi
 
 
 
-OSES=( linux darwin windows )
-ARCHS=(amd64 386 )
-for os in ${OSES[@]}; do
-	for arch in ${ARCHS[@]}; do
+OSES= linux 
+ARCHS=amd64
 		suffix=""
 		if [ "$os" == "windows" ]
 		then
@@ -44,5 +42,3 @@ for os in ${OSES[@]}; do
         zip -D -q -r ../vncproxy-${os}-${arch}-$VERSION.zip proxy${suffix} player${suffix} recorder${suffix}
         cd ../..
     	$sum ./dist/vncproxy-${os}-${arch}-$VERSION.zip
-	done
-done
