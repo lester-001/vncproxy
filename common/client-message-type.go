@@ -1,9 +1,5 @@
 package common
 
-import (
-	"io"
-)
-
 type ClientMessageType uint8
 
 //go:generate stringer -type=ClientMessageType
@@ -34,8 +30,8 @@ type ColorMap [256]Color
 // ClientMessage is the interface
 type ClientMessage interface {
 	Type() ClientMessageType
-	Read(io.Reader) (ClientMessage, error)
-	Write(io.Writer) error
+	Read(IServerConn) (ClientMessage, error)
+	Write(IServerConn) error
 }
 
 func (cmt ClientMessageType) String() string {

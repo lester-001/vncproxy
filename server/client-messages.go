@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/binary"
-	"io"
+
 	"github.com/amitbet/vncproxy/common"
 )
 
@@ -25,12 +25,12 @@ func (*MsgSetPixelFormat) Type() common.ClientMessageType {
 	return common.SetPixelFormatMsgType
 }
 
-func (msg *MsgSetPixelFormat) Write(c io.Writer) error {
-	if err := binary.Write(c, binary.BigEndian, msg.Type()); err != nil {
+func (msg *MsgSetPixelFormat) Write(c common.IServerConn) error {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Type()); err != nil {
 		return err
 	}
 
-	if err := binary.Write(c, binary.BigEndian, msg); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg); err != nil {
 		return err
 	}
 
@@ -43,9 +43,9 @@ func (msg *MsgSetPixelFormat) Write(c io.Writer) error {
 	return nil
 }
 
-func (*MsgSetPixelFormat) Read(c io.Reader) (common.ClientMessage, error) {
+func (*MsgSetPixelFormat) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgSetPixelFormat{}
-	if err := binary.Read(c, binary.BigEndian, &msg); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
 	return &msg, nil
@@ -62,19 +62,19 @@ func (*MsgSetEncodings) Type() common.ClientMessageType {
 	return common.SetEncodingsMsgType
 }
 
-func (*MsgSetEncodings) Read(c io.Reader) (common.ClientMessage, error) {
+func (*MsgSetEncodings) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgSetEncodings{}
 	var pad [1]byte
-	if err := binary.Read(c, binary.BigEndian, &pad); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &pad); err != nil {
 		return nil, err
 	}
 
-	if err := binary.Read(c, binary.BigEndian, &msg.EncNum); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &msg.EncNum); err != nil {
 		return nil, err
 	}
 	var enc common.EncodingType
 	for i := uint16(0); i < msg.EncNum; i++ {
-		if err := binary.Read(c, binary.BigEndian, &enc); err != nil {
+		if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &enc); err != nil {
 			return nil, err
 		}
 		msg.Encodings = append(msg.Encodings, enc)
@@ -83,24 +83,24 @@ func (*MsgSetEncodings) Read(c io.Reader) (common.ClientMessage, error) {
 	return &msg, nil
 }
 
-func (msg *MsgSetEncodings) Write(c io.Writer) error {
-	if err := binary.Write(c, binary.BigEndian, msg.Type()); err != nil {
+func (msg *MsgSetEncodings) Write(c common.IServerConn) error {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Type()); err != nil {
 		return err
 	}
 
 	var pad [1]byte
-	if err := binary.Write(c, binary.BigEndian, pad); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, pad); err != nil {
 		return err
 	}
 
 	if uint16(len(msg.Encodings)) > msg.EncNum {
 		msg.EncNum = uint16(len(msg.Encodings))
 	}
-	if err := binary.Write(c, binary.BigEndian, msg.EncNum); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.EncNum); err != nil {
 		return err
 	}
 	for _, enc := range msg.Encodings {
-		if err := binary.Write(c, binary.BigEndian, enc); err != nil {
+		if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, enc); err != nil {
 			return err
 		}
 	}
@@ -118,19 +118,19 @@ func (*MsgFramebufferUpdateRequest) Type() common.ClientMessageType {
 	return common.FramebufferUpdateRequestMsgType
 }
 
-func (*MsgFramebufferUpdateRequest) Read(c io.Reader) (common.ClientMessage, error) {
+func (*MsgFramebufferUpdateRequest) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgFramebufferUpdateRequest{}
-	if err := binary.Read(c, binary.BigEndian, &msg); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
 	return &msg, nil
 }
 
-func (msg *MsgFramebufferUpdateRequest) Write(c io.Writer) error {
-	if err := binary.Write(c, binary.BigEndian, msg.Type()); err != nil {
+func (msg *MsgFramebufferUpdateRequest) Write(c common.IServerConn) error {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Type()); err != nil {
 		return err
 	}
-	if err := binary.Write(c, binary.BigEndian, msg); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg); err != nil {
 		return err
 	}
 	return nil
@@ -147,19 +147,19 @@ func (*MsgKeyEvent) Type() common.ClientMessageType {
 	return common.KeyEventMsgType
 }
 
-func (*MsgKeyEvent) Read(c io.Reader) (common.ClientMessage, error) {
+func (*MsgKeyEvent) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgKeyEvent{}
-	if err := binary.Read(c, binary.BigEndian, &msg); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
 	return &msg, nil
 }
 
-func (msg *MsgKeyEvent) Write(c io.Writer) error {
-	if err := binary.Write(c, binary.BigEndian, msg.Type()); err != nil {
+func (msg *MsgKeyEvent) Write(c common.IServerConn) error {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Type()); err != nil {
 		return err
 	}
-	if err := binary.Write(c, binary.BigEndian, msg); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg); err != nil {
 		return err
 	}
 	return nil
@@ -177,19 +177,19 @@ func (*MsgQEMUExtKeyEvent) Type() common.ClientMessageType {
 	return common.QEMUExtendedKeyEventMsgType
 }
 
-func (*MsgQEMUExtKeyEvent) Read(c io.Reader) (common.ClientMessage, error) {
+func (*MsgQEMUExtKeyEvent) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgKeyEvent{}
-	if err := binary.Read(c, binary.BigEndian, &msg); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
 	return &msg, nil
 }
 
-func (msg *MsgQEMUExtKeyEvent) Write(c io.Writer) error {
-	if err := binary.Write(c, binary.BigEndian, msg.Type()); err != nil {
+func (msg *MsgQEMUExtKeyEvent) Write(c common.IServerConn) error {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Type()); err != nil {
 		return err
 	}
-	if err := binary.Write(c, binary.BigEndian, msg); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg); err != nil {
 		return err
 	}
 	return nil
@@ -205,19 +205,19 @@ func (*MsgPointerEvent) Type() common.ClientMessageType {
 	return common.PointerEventMsgType
 }
 
-func (*MsgPointerEvent) Read(c io.Reader) (common.ClientMessage, error) {
+func (*MsgPointerEvent) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgPointerEvent{}
-	if err := binary.Read(c, binary.BigEndian, &msg); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
 	return &msg, nil
 }
 
-func (msg *MsgPointerEvent) Write(c io.Writer) error {
-	if err := binary.Write(c, binary.BigEndian, msg.Type()); err != nil {
+func (msg *MsgPointerEvent) Write(c common.IServerConn) error {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Type()); err != nil {
 		return err
 	}
-	if err := binary.Write(c, binary.BigEndian, msg); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg); err != nil {
 		return err
 	}
 	return nil
@@ -230,30 +230,30 @@ func (*MsgClientFence) Type() common.ClientMessageType {
 	return common.ClientFenceMsgType
 }
 
-func (cf *MsgClientFence) Read(c io.Reader) (common.ClientMessage, error) {
+func (cf *MsgClientFence) Read(c common.IServerConn) (common.ClientMessage, error) {
 	bytes := make([]byte, 3)
-	c.Read(bytes)
-	if _, err := c.Read(bytes); err != nil {
+	c.(*ServerConn).c.Read(bytes)
+	if _, err := c.(*ServerConn).c.Read(bytes); err != nil {
 		return nil, err
 	}
 	var flags uint32
-	if err := binary.Read(c, binary.BigEndian, &flags); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &flags); err != nil {
 		return nil, err
 	}
 
 	var length uint8
-	if err := binary.Read(c, binary.BigEndian, &length); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &length); err != nil {
 		return nil, err
 	}
 
 	bytes = make([]byte, length)
-	if _, err := c.Read(bytes); err != nil {
+	if _, err := c.(*ServerConn).c.Read(bytes); err != nil {
 		return nil, err
 	}
 	return cf, nil
 }
 
-func (msg *MsgClientFence) Write(c io.Writer) error {
+func (msg *MsgClientFence) Write(c common.IServerConn) error {
 	panic("not implemented!")
 }
 
@@ -268,31 +268,31 @@ func (*MsgClientCutText) Type() common.ClientMessageType {
 	return common.ClientCutTextMsgType
 }
 
-func (*MsgClientCutText) Read(c io.Reader) (common.ClientMessage, error) {
+func (*MsgClientCutText) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgClientCutText{}
 	var pad [3]byte
-	if err := binary.Read(c, binary.BigEndian, &pad); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &pad); err != nil {
 		return nil, err
 	}
 
-	if err := binary.Read(c, binary.BigEndian, &msg.Length); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &msg.Length); err != nil {
 		return nil, err
 	}
 
 	msg.Text = make([]byte, msg.Length)
-	if err := binary.Read(c, binary.BigEndian, &msg.Text); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &msg.Text); err != nil {
 		return nil, err
 	}
 	return &msg, nil
 }
 
-func (msg *MsgClientCutText) Write(c io.Writer) error {
-	if err := binary.Write(c, binary.BigEndian, msg.Type()); err != nil {
+func (msg *MsgClientCutText) Write(c common.IServerConn) error {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Type()); err != nil {
 		return err
 	}
 
 	var pad [3]byte
-	if err := binary.Write(c, binary.BigEndian, &pad); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, &pad); err != nil {
 		return err
 	}
 
@@ -300,11 +300,11 @@ func (msg *MsgClientCutText) Write(c io.Writer) error {
 		msg.Length = uint32(len(msg.Text))
 	}
 
-	if err := binary.Write(c, binary.BigEndian, msg.Length); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Length); err != nil {
 		return err
 	}
 
-	if err := binary.Write(c, binary.BigEndian, msg.Text); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Text); err != nil {
 		return err
 	}
 
@@ -313,30 +313,30 @@ func (msg *MsgClientCutText) Write(c io.Writer) error {
 
 // MsgClientQemuExtendedKey holds the wire format message, for qemu keys
 type MsgClientQemuExtendedKey struct {
-	SubType  uint8   // sub type
-	IsDown   uint16 // button down indicator
-	KeySym   uint32 // key symbol
-	KeyCode  uint32 // key code
+	SubType uint8  // sub type
+	IsDown  uint16 // button down indicator
+	KeySym  uint32 // key symbol
+	KeyCode uint32 // key code
 }
 
 func (*MsgClientQemuExtendedKey) Type() common.ClientMessageType {
 	return common.QEMUExtendedKeyEventMsgType
 }
 
-func (*MsgClientQemuExtendedKey) Read(c io.Reader) (common.ClientMessage, error) {
+func (*MsgClientQemuExtendedKey) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgClientQemuExtendedKey{}
 
-	if err := binary.Read(c, binary.BigEndian, &msg); err != nil {
+	if err := binary.Read(c.(*ServerConn).c, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
 	return &msg, nil
 }
 
-func (msg *MsgClientQemuExtendedKey) Write(c io.Writer) error {
-	if err := binary.Write(c, binary.BigEndian, msg.Type()); err != nil {
+func (msg *MsgClientQemuExtendedKey) Write(c common.IServerConn) error {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg.Type()); err != nil {
 		return err
 	}
-	if err := binary.Write(c, binary.BigEndian, msg); err != nil {
+	if err := binary.Write(c.(*ServerConn).c, binary.BigEndian, msg); err != nil {
 		return err
 	}
 	return nil

@@ -195,7 +195,7 @@ func (c *ServerConn) handle() error {
 			if !ok {
 				logger.Errorf("ServerConn.handle: unsupported message-type: %v", messageType)
 			}
-			parsedMsg, err := msg.Read(r)
+			parsedMsg, err := msg.Read(c)
 			logger.Debugf("ServerConn.handle: got parsed messagetype, %v", parsedMsg)
 			//update connection for pixel format / color map changes
 			switch parsedMsg.Type() {

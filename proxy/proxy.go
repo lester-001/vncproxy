@@ -266,51 +266,89 @@ func (vp *VncProxy) newwsServerConnHandler(cfg *wsserver.ServerConfig, sconn *ws
 
 func (vp *VncProxy) StartListening() {
 
-	secHandlers := []server.SecurityHandler{&server.ServerAuthNone{}}
-	wssecHandlers := []wsserver.SecurityHandler{&wsserver.ServerAuthNone{}}
+	old := false
+	if old {
 
-	if vp.ProxyVncPassword != "" {
-		secHandlers = []server.SecurityHandler{&server.ServerAuthVNC{vp.ProxyVncPassword}}
-		wssecHandlers = []wsserver.SecurityHandler{&wsserver.ServerAuthVNC{vp.ProxyVncPassword}}
-	}
-	cfg := &server.ServerConfig{
-		SecurityHandlers: secHandlers,
-		Encodings:        []common.IEncoding{&encodings.RawEncoding{}, &encodings.TightEncoding{}, &encodings.CopyRectEncoding{}},
-		PixelFormat:      common.NewPixelFormat(32),
-		ClientMessages:   server.DefaultClientMessages,
-		DesktopName:      []byte("workDesk"),
-		Height:           uint16(768),
-		Width:            uint16(1024),
-		NewConnHandler:   vp.newServerConnHandler,
-		UseDummySession:  !vp.UsingSessions,
-	}
+		secHandlers := []server.SecurityHandler{&server.ServerAuthNone{}}
 
-	wscfg := &wsserver.ServerConfig{
-		SecurityHandlers: wssecHandlers,
-		Encodings:        []common.IEncoding{&encodings.RawEncoding{}, &encodings.TightEncoding{}, &encodings.CopyRectEncoding{}},
-		PixelFormat:      common.NewPixelFormat(32),
-		ClientMessages:   server.DefaultClientMessages,
-		DesktopName:      []byte("workDesk"),
-		Height:           uint16(768),
-		Width:            uint16(1024),
-		NewConnHandler:   vp.newwsServerConnHandler,
-		UseDummySession:  !vp.UsingSessions,
-	}
-	if vp.TCPListeningURL != "" && vp.WsListeningURL != "" {
-		logger.Infof("running two listeners: tcp port: %s, ws url: %s", vp.TCPListeningURL, vp.WsListeningURL)
+		if vp.ProxyVncPassword != "" {
+			secHandlers = []server.SecurityHandler{&server.ServerAuthVNC{vp.ProxyVncPassword}}
+		}
+		cfg := &server.ServerConfig{
+			SecurityHandlers: secHandlers,
+			Encodings:        []common.IEncoding{&encodings.RawEncoding{}, &encodings.TightEncoding{}, &encodings.CopyRectEncoding{}},
+			PixelFormat:      common.NewPixelFormat(32),
+			ClientMessages:   server.DefaultClientMessages,
+			DesktopName:      []byte("workDesk"),
+			Height:           uint16(768),
+			Width:            uint16(1024),
+			NewConnHandler:   vp.newServerConnHandler,
+			UseDummySession:  !vp.UsingSessions,
+		}
+		if vp.TCPListeningURL != "" && vp.WsListeningURL != "" {
+			logger.Infof("running two listeners: tcp port: %s, ws url: %s", vp.TCPListeningURL, vp.WsListeningURL)
 
-		//go wsserver.WsServe(vp.WsListeningURL, wscfg)
-		go server.WsServe(vp.WsListeningURL, cfg)
-		server.TcpServe(vp.TCPListeningURL, cfg)
-	}
+			go server.WsServe(vp.WsListeningURL, cfg)
+			server.TcpServe(vp.TCPListeningURL, cfg)
+		}
 
-	if vp.WsListeningURL != "" {
-		logger.Infof("running ws listener url: %s", vp.WsListeningURL)
-		//wsserver.WsServe(vp.WsListeningURL, wscfg)
-		server.WsServe(vp.WsListeningURL, cfg)
-	}
-	if vp.TCPListeningURL != "" {
-		logger.Infof("running tcp listener on port: %s", vp.TCPListeningURL)
-		server.TcpServe(vp.TCPListeningURL, cfg)
+		if vp.WsListeningURL != "" {
+			logger.Infof("running ws listener url: %s", vp.WsListeningURL)
+			server.WsServe(vp.WsListeningURL, cfg)
+		}
+		if vp.TCPListeningURL != "" {
+			logger.Infof("running tcp listener on port: %s", vp.TCPListeningURL)
+			server.TcpServe(vp.TCPListeningURL, cfg)
+		}
+	} else {
+
+		secHandlers := []server.SecurityHandler{&server.ServerAuthNone{}}
+		wssecHandlers := []wsserver.SecurityHandler{&wsserver.ServerAuthNone{}}
+
+		if vp.ProxyVncPassword != "" {
+			secHandlers = []server.SecurityHandler{&server.ServerAuthVNC{vp.ProxyVncPassword}}
+			wssecHandlers = []wsserver.SecurityHandler{&wsserver.ServerAuthVNC{vp.ProxyVncPassword}}
+		}
+
+		cfg := &server.ServerConfig{
+			SecurityHandlers: secHandlers,
+			Encodings:        []common.IEncoding{&encodings.RawEncoding{}, &encodings.TightEncoding{}, &encodings.CopyRectEncoding{}},
+			PixelFormat:      common.NewPixelFormat(32),
+			ClientMessages:   server.DefaultClientMessages,
+			DesktopName:      []byte("workDesk"),
+			Height:           uint16(768),
+			Width:            uint16(1024),
+			NewConnHandler:   vp.newServerConnHandler,
+			UseDummySession:  !vp.UsingSessions,
+		}
+		wscfg := &wsserver.ServerConfig{
+			SecurityHandlers: wssecHandlers,
+			Encodings:        []common.IEncoding{&encodings.RawEncoding{}, &encodings.TightEncoding{}, &encodings.CopyRectEncoding{}},
+			PixelFormat:      common.NewPixelFormat(32),
+			ClientMessages:   server.DefaultClientMessages,
+			DesktopName:      []byte("workDesk"),
+			Height:           uint16(768),
+			Width:            uint16(1024),
+			NewConnHandler:   vp.newwsServerConnHandler,
+			UseDummySession:  !vp.UsingSessions,
+		}
+
+		if vp.TCPListeningURL != "" && vp.WsListeningURL != "" {
+			logger.Infof("running two listeners: tcp port: %s, ws url: %s", vp.TCPListeningURL, vp.WsListeningURL)
+
+			go wsserver.WsServe(vp.WsListeningURL, wscfg)
+			//go server.WsServe(vp.WsListeningURL, cfg)
+			server.TcpServe(vp.TCPListeningURL, cfg)
+		}
+
+		if vp.WsListeningURL != "" {
+			logger.Infof("running ws listener url: %s", vp.WsListeningURL)
+			wsserver.WsServe(vp.WsListeningURL, wscfg)
+			//server.WsServe(vp.WsListeningURL, cfg)
+		}
+		if vp.TCPListeningURL != "" {
+			logger.Infof("running tcp listener on port: %s", vp.TCPListeningURL)
+			server.TcpServe(vp.TCPListeningURL, cfg)
+		}
 	}
 }

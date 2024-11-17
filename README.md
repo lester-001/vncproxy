@@ -28,7 +28,8 @@ An RFB proxy, written in go that can save and replay FBS files
     recorder -recFile=./recording.rbs -targHost=192.168.0.100 -targPort=5903 -targPass=@@@@@
     player -fbsFile=./myrec.fbs -tcpPort=5905
     proxy -recDir=./recordings/ -targHost=192.168.0.100 -targPort=5903 -targPass=123456 -tcpPort=5903 -wsPort=5905 -vncPass=123456
-
+ ./dist/_/proxy -targHost=192.168.3.71 -targPort=5901 -targPass=123456 -tcpPort=5903 -wsPort=5906 -vncPass=123456 -logLevel=trace
+ 
 ### Code usage examples
 * player/main.go (fbs recording vnc client) 
     * Connects as client, records to FBS file

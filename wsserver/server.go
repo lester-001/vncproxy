@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/amitbet/vncproxy/common"
+	"github.com/amitbet/vncproxy/logger"
 	"github.com/gorilla/websocket"
 )
 
@@ -52,12 +53,12 @@ func wsHandlerFunc(ws *websocket.Conn, cfg *ServerConfig, sessionId string) {
 
 func WsServe(url string, cfg *ServerConfig) error {
 	server := WebsocketServer{cfg}
+	logger.Errorf("WsServe")
 	server.Listen(url, WebsocketHandler(wsHandlerFunc))
 	return nil
 }
 
 func attachNewServerConn(c *websocket.Conn, cfg *ServerConfig, sessionId string) error {
-
 	conn, err := NewServerConn(c, cfg)
 	if err != nil {
 		return err

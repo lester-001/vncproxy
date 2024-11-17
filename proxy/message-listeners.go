@@ -55,6 +55,8 @@ func (p *wsServerUpdater) Consume(seg *common.RfbSegment) error {
 		p.conn.SetDesktopName(string(serverInitMessage.NameText))
 		p.conn.SetPixelFormat(&serverInitMessage.PixelFormat)
 
+		logger.Debugf("WriteTo.Consume (ServerUpdater): serverInitMessage NameText=%s", string(serverInitMessage.NameText))
+
 	case common.SegmentBytes:
 		logger.Debugf("WriteTo.Consume (ServerUpdater SegmentBytes): got bytes len=%d", len(seg.Bytes))
 		_, err := p.conn.Write(seg.Bytes)

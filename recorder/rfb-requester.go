@@ -2,6 +2,7 @@ package recorder
 
 import (
 	"time"
+
 	"github.com/amitbet/vncproxy/client"
 	"github.com/amitbet/vncproxy/common"
 	"github.com/amitbet/vncproxy/logger"
@@ -23,7 +24,7 @@ func (p *RfbRequester) Consume(seg *common.RfbSegment) error {
 		serverInitMessage := seg.Message.(*common.ServerInit)
 		p.Conn.FrameBufferHeight = serverInitMessage.FBHeight
 		p.Conn.FrameBufferWidth = serverInitMessage.FBWidth
-		p.Conn.DesktopName = string(serverInitMessage.NameText)
+		p.Conn.SetDesktopName(string(serverInitMessage.NameText))
 		p.Conn.SetPixelFormat(&serverInitMessage.PixelFormat)
 		p.Width = serverInitMessage.FBWidth
 		p.Height = serverInitMessage.FBHeight

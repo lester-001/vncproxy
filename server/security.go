@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"log"
+
 	"github.com/amitbet/vncproxy/common"
 )
 
@@ -49,7 +50,7 @@ const (
 type SecurityHandler interface {
 	Type() SecurityType
 	SubType() SecuritySubType
-	Auth(common.IServerConn) error
+	Auth(common.IServerConnIO) error
 }
 
 // type ClientAuthNone struct{}
@@ -73,7 +74,7 @@ func (*ServerAuthNone) Type() SecurityType {
 	return SecTypeNone
 }
 
-func (*ServerAuthNone) Auth(c common.IServerConn) error {
+func (*ServerAuthNone) Auth(c common.IServerConnIO) error {
 	return nil
 }
 
@@ -198,7 +199,7 @@ func (*ServerAuthVNC) SubType() SecuritySubType {
 
 const AUTH_FAIL = "Authentication Failure"
 
-func (auth *ServerAuthVNC) Auth(c common.IServerConn) error {
+func (auth *ServerAuthVNC) Auth(c common.IServerConnIO) error {
 	buf := make([]byte, 8+len([]byte(AUTH_FAIL)))
 	rand.Read(buf[:16]) // Random 16 bytes in buf
 	sndsz, err := c.Write(buf[:16])

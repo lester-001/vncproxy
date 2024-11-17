@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"time"
+
 	"github.com/amitbet/vncproxy/client"
 	"github.com/amitbet/vncproxy/common"
 	"github.com/amitbet/vncproxy/encodings"

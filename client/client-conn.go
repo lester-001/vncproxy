@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/amitbet/vncproxy/common"
-	"github.com/amitbet/vncproxy/logger"
 	"io"
 	"net"
 	"unicode"
+
+	"github.com/amitbet/vncproxy/common"
+	"github.com/amitbet/vncproxy/logger"
 )
 
 // A ServerMessage implements a message sent from the server to the client.
@@ -28,12 +29,13 @@ type ClientConn struct {
 	conn io.ReadWriteCloser
 
 	//c      net.IServerConn
-	config *ClientConfig
+	config   *ClientConfig
+	protocol string
 
 	// If the pixel format uses a color map, then this is the color
 	// map that is used. This should not be modified directly, since
 	// the data comes from the server.
-	ColorMap common.ColorMap
+	colorMap *common.ColorMap
 
 	// Encodings supported by the client. This should not be modified
 	// directly. Instead, SetEncodings should be used.
@@ -45,8 +47,14 @@ type ClientConn struct {
 	// Height of the frame buffer in pixels, sent from the server.
 	FrameBufferHeight uint16
 
+	// Height of the frame buffer in pixels, sent to the client.
+	fbHeight uint16
+
+	// Width of the frame buffer in pixels, sent to the client.
+	fbWidth uint16
+
 	// Name associated with the desktop, sent from the server.
-	DesktopName string
+	desktopName string
 
 	// The pixel format associated with the connection. This shouldn't
 	// be modified. If you wish to set a new pixel format, use the
@@ -258,14 +266,14 @@ func (c *ClientConn) PointerEvent(mask ButtonMask, x, y uint16) error {
 // given should not be modified.
 //
 // See RFC 6143 Section 7.5.2
-func (c *ClientConn) SetEncodings(encs []common.IEncoding) error {
+func (c *ClientConn) SetEncodings(encs []common.EncodingType) error {
 	data := make([]interface{}, 3+len(encs))
 	data[0] = uint8(2)
 	data[1] = uint8(0)
 	data[2] = uint16(len(encs))
 
 	for i, enc := range encs {
-		data[3+i] = int32(enc.Type())
+		data[3+i] = int32(enc)
 	}
 
 	var buf bytes.Buffer
@@ -280,8 +288,12 @@ func (c *ClientConn) SetEncodings(encs []common.IEncoding) error {
 		return err
 	}
 
-	c.Encs = encs
-
+	Encs := make(map[int32]common.IEncoding)
+	for _, encType := range encs {
+		if enc, ok := Encs[int32(encType)]; ok {
+			c.Encs = append(c.Encs, enc)
+		}
+	}
 	return nil
 }
 
@@ -308,7 +320,7 @@ func (c *ClientConn) SetPixelFormat(format *common.PixelFormat) error {
 
 	// Reset the color map as according to RFC.
 	var newColorMap common.ColorMap
-	c.ColorMap = newColorMap
+	c.SetColorMap(&newColorMap)
 
 	return nil
 }
@@ -447,7 +459,7 @@ FindAuth:
 		return err
 	}
 
-	c.DesktopName = string(nameBytes)
+	c.SetDesktopName(string(nameBytes))
 	srvInit := common.ServerInit{
 		NameLength:  nameLength,
 		NameText:    nameBytes,
@@ -532,4 +544,38 @@ func (c *ClientConn) readErrorReason() string {
 	}
 
 	return string(reason)
+}
+
+func (c *ClientConn) SetProtoVersion(pv string) {
+	c.protocol = pv
+}
+
+func (c *ClientConn) ColorMap() *common.ColorMap {
+	return c.colorMap
+}
+
+func (c *ClientConn) SetColorMap(cm *common.ColorMap) {
+	c.colorMap = cm
+}
+func (c *ClientConn) DesktopName() string {
+	return c.desktopName
+}
+
+func (c *ClientConn) SetDesktopName(name string) {
+	c.desktopName = name
+}
+func (c *ClientConn) Width() uint16 {
+	return c.fbWidth
+}
+func (c *ClientConn) Height() uint16 {
+	return c.fbHeight
+}
+func (c *ClientConn) Protocol() string {
+	return c.protocol
+}
+func (c *ClientConn) SetWidth(w uint16) {
+	c.fbWidth = w
+}
+func (c *ClientConn) SetHeight(h uint16) {
+	c.fbHeight = h
 }

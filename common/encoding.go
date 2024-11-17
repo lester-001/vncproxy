@@ -288,6 +288,74 @@ func (format *PixelFormat) WriteTo(w io.Writer) error {
 	return nil
 }
 
+func (format *PixelFormat) WriteToBuf(data *bytes.Buffer) error {
+	var buf bytes.Buffer
+
+	// Byte 1
+	if err := binary.Write(&buf, binary.BigEndian, format.BPP); err != nil {
+		return err
+	}
+
+	// Byte 2
+	if err := binary.Write(&buf, binary.BigEndian, format.Depth); err != nil {
+		return err
+	}
+
+	var boolByte byte
+	if format.BigEndian == 1 {
+		boolByte = 1
+	} else {
+		boolByte = 0
+	}
+
+	// Byte 3 (BigEndian)
+	if err := binary.Write(&buf, binary.BigEndian, boolByte); err != nil {
+		return err
+	}
+
+	if format.TrueColor == 1 {
+		boolByte = 1
+	} else {
+		boolByte = 0
+	}
+
+	// Byte 4 (TrueColor)
+	if err := binary.Write(&buf, binary.BigEndian, boolByte); err != nil {
+		return err
+	}
+
+	// If we have true color enabled then we have to fill in the rest of the
+	// structure with the color values.
+	if format.TrueColor == 1 {
+		if err := binary.Write(&buf, binary.BigEndian, format.RedMax); err != nil {
+			return err
+		}
+
+		if err := binary.Write(&buf, binary.BigEndian, format.GreenMax); err != nil {
+			return err
+		}
+
+		if err := binary.Write(&buf, binary.BigEndian, format.BlueMax); err != nil {
+			return err
+		}
+
+		if err := binary.Write(&buf, binary.BigEndian, format.RedShift); err != nil {
+			return err
+		}
+
+		if err := binary.Write(&buf, binary.BigEndian, format.GreenShift); err != nil {
+			return err
+		}
+
+		if err := binary.Write(&buf, binary.BigEndian, format.BlueShift); err != nil {
+			return err
+		}
+	}
+
+	data.Write(buf.Bytes()[0:16])
+	return nil
+}
+
 func NewPixelFormat(bpp uint8) *PixelFormat {
 	bigEndian := 0
 	//	rgbMax := uint16(math.Exp2(float64(bpp))) - 1

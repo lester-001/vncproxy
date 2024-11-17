@@ -1,6 +1,7 @@
 package wsserver
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -41,6 +42,21 @@ func ParseProtoVersion(pv []byte) (uint, uint, error) {
 func ServerVersionHandler(cfg *ServerConfig, c *ServerConn) error {
 	var version [ProtoVersionLength]byte
 
+	c.SetProtoVersion(ProtoVersion38)
+
+	w, err := c.c.NextWriter(websocket.BinaryMessage)
+	if err != nil {
+		return err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, []byte(ProtoVersion38)); err != nil {
+		return err
+	}
+
+	if err := w.Close(); err != nil {
+		return err
+	}
+
 	messageType, r, err := c.c.NextReader()
 	if err != nil || messageType != websocket.BinaryMessage {
 		return err
@@ -70,21 +86,6 @@ func ServerVersionHandler(cfg *ServerConfig, c *ServerConn) error {
 		return fmt.Errorf("ProtocolVersion handshake failed; unsupported version '%v'", string(version[:]))
 	}
 
-	c.SetProtoVersion(pv)
-
-	w, err := c.c.NextWriter(websocket.BinaryMessage)
-	if err != nil {
-		return err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, []byte(ProtoVersion38)); err != nil {
-		return err
-	}
-
-	if err := w.Close(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -98,10 +99,23 @@ func ServerSecurityHandler(cfg *ServerConfig, c *ServerConn) error {
 		return err
 	}
 
+	if err := w.Close(); err != nil {
+		return err
+	}
+
+	w, err = c.c.NextWriter(websocket.BinaryMessage)
+	if err != nil {
+		return err
+	}
+
 	for _, sectype := range cfg.SecurityHandlers {
 		if err := binary.Write(w, binary.BigEndian, sectype.Type()); err != nil {
 			return err
 		}
+	}
+
+	if err := w.Close(); err != nil {
+		return err
 	}
 
 	// if err := c.Flush(); err != nil {
@@ -134,6 +148,10 @@ func ServerSecurityHandler(cfg *ServerConfig, c *ServerConn) error {
 		authCode = uint32(1)
 	}
 
+	w, err = c.c.NextWriter(websocket.BinaryMessage)
+	if err != nil {
+		return err
+	}
 	if err := binary.Write(w, binary.BigEndian, authCode); err != nil {
 		return err
 	}
@@ -141,21 +159,30 @@ func ServerSecurityHandler(cfg *ServerConfig, c *ServerConn) error {
 	// 	return err
 	// }
 
+	if err := w.Close(); err != nil {
+		return err
+	}
+
 	if authErr != nil {
+		w, err = c.c.NextWriter(websocket.BinaryMessage)
+		if err != nil {
+			return err
+		}
+
 		if err := binary.Write(w, binary.BigEndian, len(authErr.Error())); err != nil {
 			return err
 		}
 		if err := binary.Write(w, binary.BigEndian, []byte(authErr.Error())); err != nil {
 			return err
 		}
+
+		if err := w.Close(); err != nil {
+			return err
+		}
 		// if err := c.Flush(); err != nil {
 		// 	return err
 		// }
 		return authErr
-	}
-
-	if err := w.Close(); err != nil {
-		return err
 	}
 
 	return nil
@@ -166,31 +193,28 @@ func ServerServerInitHandler(cfg *ServerConfig, c *ServerConn) error {
 		FBWidth:     c.Width(),
 		FBHeight:    c.Height(),
 		PixelFormat: *c.CurrentPixelFormat(),
-		NameLength:  uint32(len(cfg.DesktopName)),
-		NameText:    []byte(cfg.DesktopName),
+		NameLength:  uint32(len(c.desktopName)),
+		NameText:    []byte(c.desktopName),
 	}
 	logger.Debugf("Server.ServerServerInitHandler initMessage: %v", srvInit)
 
-	w, err := c.c.NextWriter(websocket.BinaryMessage)
-	if err != nil {
+	data := bytes.Buffer{}
+
+	if err := binary.Write(&data, binary.BigEndian, srvInit.FBWidth); err != nil {
+		return err
+	}
+	if err := binary.Write(&data, binary.BigEndian, srvInit.FBHeight); err != nil {
 		return err
 	}
 
-	if err := binary.Write(w, binary.BigEndian, srvInit.FBWidth); err != nil {
+	if err := srvInit.PixelFormat.WriteToBuf(&data); err != nil {
 		return err
 	}
-	if err := binary.Write(w, binary.BigEndian, srvInit.FBHeight); err != nil {
-		return err
-	}
-
-	if err := srvInit.PixelFormat.WriteTo(w); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.BigEndian, srvInit.NameLength); err != nil {
+	if err := binary.Write(&data, binary.BigEndian, srvInit.NameLength); err != nil {
 		return err
 	}
 
-	if err := binary.Write(w, binary.BigEndian, srvInit.NameText); err != nil {
+	if err := binary.Write(&data, binary.BigEndian, srvInit.NameText); err != nil {
 		return err
 	}
 	//
@@ -209,6 +233,14 @@ func ServerServerInitHandler(cfg *ServerConfig, c *ServerConn) error {
 	//}
 	//tightInit.WriteTo(c)
 
+	w, err := c.c.NextWriter(websocket.BinaryMessage)
+	if err != nil {
+		return err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, data.Bytes()); err != nil {
+		return err
+	}
 	if err := w.Close(); err != nil {
 		return err
 	}
