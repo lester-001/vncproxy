@@ -1,6 +1,7 @@
 package wsserver
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"sync"
@@ -45,6 +46,8 @@ type ServerConn struct {
 	SessionId string
 
 	quit chan struct{}
+
+	lastRecv bytes.Buffer
 }
 
 // func (c *IServerConn) UnreadByte() error {
@@ -181,17 +184,17 @@ func (c *ServerConn) handle() error {
 			return nil
 		default:
 			var messageType common.ClientMessageType
-			mt, r, err := c.c.NextReader()
+			mt, data, err := c.c.ReadMessage()
 			if err != nil || mt != websocket.BinaryMessage {
 				return err
 			}
-			if err := binary.Read(r, binary.BigEndian, &messageType); err != nil {
+			c.lastRecv.Write(data)
+			if err := binary.Read(&c.lastRecv, binary.BigEndian, &messageType); err != nil {
 				logger.Errorf("ServerConn.handle error: %v", err)
 				return err
 			}
-			logger.Debugf("ServerConn.handle: got messagetype, %d", messageType)
 			msg, ok := clientMessages[messageType]
-			logger.Debugf("ServerConn.handle: found message type, %v", ok)
+			logger.Debugf("ServerConn.handle: found message type %d, %v", messageType, ok)
 			if !ok {
 				logger.Errorf("ServerConn.handle: unsupported message-type: %v", messageType)
 			}
