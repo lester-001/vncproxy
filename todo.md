@@ -1,5 +1,7 @@
 
 # TODO:
+
+* --
 * add replay logics to proxy (depending on session type & cmdline flags)
 * set correct status for each flow in proxy (replay / prox+record / prox / ..)
 * improve recorder so it will save RFB response before sending another RFB update request
