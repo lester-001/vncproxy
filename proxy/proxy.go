@@ -72,11 +72,12 @@ func (vp *VncProxy) getProxySession(sessionId string) (*VncSession, error) {
 	return vp.sessionManager.GetSession(sessionId)
 }
 
-func (vp *VncProxy) newServerConnHandler(cfg *server.ServerConfig, sconn *server.ServerConn) error {
+func (vp *VncProxy) newServerConnHandler(cfg *server.ServerConfig, conn common.IServerConn) error {
 	var err error
-	session, err := vp.getProxySession(sconn.SessionId)
+	sconn := conn.(*server.ServerConn)
+	session, err := vp.getProxySession(sconn.SessionId())
 	if err != nil {
-		logger.Errorf("Proxy.newServerConnHandler can't get session: %d", sconn.SessionId)
+		logger.Errorf("Proxy.newServerConnHandler can't get session: %d", sconn.SessionId())
 		return err
 	}
 
@@ -91,7 +92,7 @@ func (vp *VncProxy) newServerConnHandler(cfg *server.ServerConfig, sconn *server
 			return err
 		}
 
-		sconn.Listeners.AddListener(rec)
+		sconn.Listeners().AddListener(rec)
 	}
 
 	session.Status = SessionStatusInit
@@ -108,7 +109,7 @@ func (vp *VncProxy) newServerConnHandler(cfg *server.ServerConfig, sconn *server
 			return err
 		}
 		if session.Type == SessionTypeRecordingProxy {
-			cconn.Listeners.AddListener(rec)
+			cconn.Listeners().AddListener(rec)
 		}
 
 		//creating cross-listeners between server and client parts to pass messages through the proxy:
@@ -116,12 +117,12 @@ func (vp *VncProxy) newServerConnHandler(cfg *server.ServerConfig, sconn *server
 		// gets the bytes from the actual vnc server on the env (client part of the proxy)
 		// and writes them through the server socket to the vnc-client
 		serverUpdater := &ServerUpdater{sconn}
-		cconn.Listeners.AddListener(serverUpdater)
+		cconn.Listeners().AddListener(serverUpdater)
 
 		// gets the messages from the server part (from vnc-client),
 		// and write through the client to the actual vnc-server
 		clientUpdater := &ClientUpdater{cconn}
-		sconn.Listeners.AddListener(clientUpdater)
+		sconn.Listeners().AddListener(clientUpdater)
 
 		err = cconn.Connect()
 		if err != nil {
@@ -159,7 +160,7 @@ func (vp *VncProxy) newServerConnHandler(cfg *server.ServerConfig, sconn *server
 			logger.Error("TestServer.NewConnHandler: Error in loading FBS: ", err)
 			return err
 		}
-		sconn.Listeners.AddListener(player.NewFBSPlayListener(sconn, fbs))
+		sconn.Listeners().AddListener(player.NewFBSPlayListener(sconn, fbs))
 		return nil
 
 	}
@@ -168,11 +169,11 @@ func (vp *VncProxy) newServerConnHandler(cfg *server.ServerConfig, sconn *server
 	return nil
 }
 
-func (vp *VncProxy) newwsServerConnHandler(cfg *wsserver.ServerConfig, sconn *wsserver.ServerConn) error {
+func (vp *VncProxy) newwsServerConnHandler(cfg *wsserver.ServerConfig, conn common.IServerConn) error {
 	var err error
-	session, err := vp.getProxySession(sconn.SessionId)
+	session, err := vp.getProxySession(conn.SessionId())
 	if err != nil {
-		logger.Errorf("Proxy.newServerConnHandler can't get session: %d", sconn.SessionId)
+		logger.Errorf("Proxy.newServerConnHandler can't get session: %d", conn.SessionId())
 		return err
 	}
 
@@ -187,7 +188,7 @@ func (vp *VncProxy) newwsServerConnHandler(cfg *wsserver.ServerConfig, sconn *ws
 			return err
 		}
 
-		sconn.Listeners.AddListener(rec)
+		conn.Listeners().AddListener(rec)
 	}
 
 	session.Status = SessionStatusInit
@@ -204,20 +205,20 @@ func (vp *VncProxy) newwsServerConnHandler(cfg *wsserver.ServerConfig, sconn *ws
 			return err
 		}
 		if session.Type == SessionTypeRecordingProxy {
-			cconn.Listeners.AddListener(rec)
+			cconn.Listeners().AddListener(rec)
 		}
 
 		//creating cross-listeners between server and client parts to pass messages through the proxy:
 
 		// gets the bytes from the actual vnc server on the env (client part of the proxy)
 		// and writes them through the server socket to the vnc-client
-		serverUpdater := &wsServerUpdater{sconn}
-		cconn.Listeners.AddListener(serverUpdater)
+		serverUpdater := &wsServerUpdater{conn}
+		cconn.Listeners().AddListener(serverUpdater)
 
 		// gets the messages from the server part (from vnc-client),
 		// and write through the client to the actual vnc-server
 		clientUpdater := &ClientUpdater{cconn}
-		sconn.Listeners.AddListener(clientUpdater)
+		conn.Listeners().AddListener(clientUpdater)
 
 		err = cconn.Connect()
 		if err != nil {
@@ -266,89 +267,39 @@ func (vp *VncProxy) newwsServerConnHandler(cfg *wsserver.ServerConfig, sconn *ws
 
 func (vp *VncProxy) StartListening() {
 
-	old := false
-	if old {
+	wssecHandlers := []wsserver.SecurityHandler{&wsserver.ServerAuthNone{}}
 
-		secHandlers := []server.SecurityHandler{&server.ServerAuthNone{}}
+	if vp.ProxyVncPassword != "" {
+		wssecHandlers = []wsserver.SecurityHandler{&wsserver.ServerAuthVNC{vp.ProxyVncPassword}}
+	}
 
-		if vp.ProxyVncPassword != "" {
-			secHandlers = []server.SecurityHandler{&server.ServerAuthVNC{vp.ProxyVncPassword}}
-		}
-		cfg := &server.ServerConfig{
-			SecurityHandlers: secHandlers,
-			Encodings:        []common.IEncoding{&encodings.RawEncoding{}, &encodings.TightEncoding{}, &encodings.CopyRectEncoding{}},
-			PixelFormat:      common.NewPixelFormat(32),
-			ClientMessages:   server.DefaultClientMessages,
-			DesktopName:      []byte("workDesk"),
-			Height:           uint16(768),
-			Width:            uint16(1024),
-			NewConnHandler:   vp.newServerConnHandler,
-			UseDummySession:  !vp.UsingSessions,
-		}
-		if vp.TCPListeningURL != "" && vp.WsListeningURL != "" {
-			logger.Infof("running two listeners: tcp port: %s, ws url: %s", vp.TCPListeningURL, vp.WsListeningURL)
+	wscfg := &wsserver.ServerConfig{
+		SecurityHandlers: wssecHandlers,
+		Encodings:        []common.IEncoding{&encodings.RawEncoding{}, &encodings.TightEncoding{}, &encodings.CopyRectEncoding{}},
+		PixelFormat:      common.NewPixelFormat(32),
+		ClientMessages:   wsserver.DefaultClientMessages,
+		DesktopName:      []byte("workDesk"),
+		Height:           uint16(768),
+		Width:            uint16(1024),
+		NewConnHandler:   vp.newwsServerConnHandler,
+		UseDummySession:  !vp.UsingSessions,
+	}
 
-			go server.WsServe(vp.WsListeningURL, cfg)
-			server.TcpServe(vp.TCPListeningURL, cfg)
-		}
+	if vp.TCPListeningURL != "" && vp.WsListeningURL != "" {
+		logger.Infof("running two listeners: tcp port: %s, ws url: %s", vp.TCPListeningURL, vp.WsListeningURL)
 
-		if vp.WsListeningURL != "" {
-			logger.Infof("running ws listener url: %s", vp.WsListeningURL)
-			server.WsServe(vp.WsListeningURL, cfg)
-		}
-		if vp.TCPListeningURL != "" {
-			logger.Infof("running tcp listener on port: %s", vp.TCPListeningURL)
-			server.TcpServe(vp.TCPListeningURL, cfg)
-		}
-	} else {
+		go wsserver.WsServe(vp.WsListeningURL, wscfg)
+		//go server.WsServe(vp.WsListeningURL, cfg)
+		wsserver.TcpServe(vp.TCPListeningURL, wscfg)
+	}
 
-		secHandlers := []server.SecurityHandler{&server.ServerAuthNone{}}
-		wssecHandlers := []wsserver.SecurityHandler{&wsserver.ServerAuthNone{}}
-
-		if vp.ProxyVncPassword != "" {
-			secHandlers = []server.SecurityHandler{&server.ServerAuthVNC{vp.ProxyVncPassword}}
-			wssecHandlers = []wsserver.SecurityHandler{&wsserver.ServerAuthVNC{vp.ProxyVncPassword}}
-		}
-
-		cfg := &server.ServerConfig{
-			SecurityHandlers: secHandlers,
-			Encodings:        []common.IEncoding{&encodings.RawEncoding{}, &encodings.TightEncoding{}, &encodings.CopyRectEncoding{}},
-			PixelFormat:      common.NewPixelFormat(32),
-			ClientMessages:   server.DefaultClientMessages,
-			DesktopName:      []byte("workDesk"),
-			Height:           uint16(768),
-			Width:            uint16(1024),
-			NewConnHandler:   vp.newServerConnHandler,
-			UseDummySession:  !vp.UsingSessions,
-		}
-		wscfg := &wsserver.ServerConfig{
-			SecurityHandlers: wssecHandlers,
-			Encodings:        []common.IEncoding{&encodings.RawEncoding{}, &encodings.TightEncoding{}, &encodings.CopyRectEncoding{}},
-			PixelFormat:      common.NewPixelFormat(32),
-			ClientMessages:   server.DefaultClientMessages,
-			DesktopName:      []byte("workDesk"),
-			Height:           uint16(768),
-			Width:            uint16(1024),
-			NewConnHandler:   vp.newwsServerConnHandler,
-			UseDummySession:  !vp.UsingSessions,
-		}
-
-		if vp.TCPListeningURL != "" && vp.WsListeningURL != "" {
-			logger.Infof("running two listeners: tcp port: %s, ws url: %s", vp.TCPListeningURL, vp.WsListeningURL)
-
-			go wsserver.WsServe(vp.WsListeningURL, wscfg)
-			//go server.WsServe(vp.WsListeningURL, cfg)
-			server.TcpServe(vp.TCPListeningURL, cfg)
-		}
-
-		if vp.WsListeningURL != "" {
-			logger.Infof("running ws listener url: %s", vp.WsListeningURL)
-			wsserver.WsServe(vp.WsListeningURL, wscfg)
-			//server.WsServe(vp.WsListeningURL, cfg)
-		}
-		if vp.TCPListeningURL != "" {
-			logger.Infof("running tcp listener on port: %s", vp.TCPListeningURL)
-			server.TcpServe(vp.TCPListeningURL, cfg)
-		}
+	if vp.WsListeningURL != "" {
+		logger.Infof("running ws listener url: %s", vp.WsListeningURL)
+		wsserver.WsServe(vp.WsListeningURL, wscfg)
+		//server.WsServe(vp.WsListeningURL, cfg)
+	}
+	if vp.TCPListeningURL != "" {
+		logger.Infof("running tcp listener on port: %s", vp.TCPListeningURL)
+		wsserver.TcpServe(vp.TCPListeningURL, wscfg)
 	}
 }

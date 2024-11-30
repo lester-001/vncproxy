@@ -55,13 +55,14 @@ type ClientConn struct {
 
 	// Name associated with the desktop, sent from the server.
 	desktopName string
+	sessionId   string
 
 	// The pixel format associated with the connection. This shouldn't
 	// be modified. If you wish to set a new pixel format, use the
 	// SetPixelFormat method.
 	PixelFormat common.PixelFormat
 
-	Listeners *common.MultiListener
+	listeners *common.MultiListener
 }
 
 // A ClientConfig structure is used to configure a ClientConn. After
@@ -86,7 +87,7 @@ func NewClientConn(c net.Conn, cfg *ClientConfig) (*ClientConn, error) {
 	conn := &ClientConn{
 		conn:      c,
 		config:    cfg,
-		Listeners: &common.MultiListener{},
+		listeners: &common.MultiListener{},
 	}
 	return conn, nil
 }
@@ -112,6 +113,18 @@ func (c *ClientConn) Encodings() []common.IEncoding {
 	return c.Encs
 }
 
+func (c *ClientConn) SetSessionId(sessionId string) {
+	c.sessionId = sessionId
+}
+
+func (c *ClientConn) SessionId() string {
+	return c.sessionId
+}
+
+func (c *ClientConn) Listeners() *common.MultiListener {
+	return c.listeners
+}
+
 func (c *ClientConn) CurrentPixelFormat() *common.PixelFormat {
 	return &c.PixelFormat
 }
@@ -119,9 +132,23 @@ func (c *ClientConn) CurrentPixelFormat() *common.PixelFormat {
 func (c *ClientConn) Write(bytes []byte) (n int, err error) {
 	return c.conn.Write(bytes)
 }
+func (c *ClientConn) WriteMessage(messageType int, buf []byte) (int, error) {
 
+	return c.conn.Write(buf)
+}
+
+func (c *ClientConn) Reader() (io.Reader, error) {
+	return c, nil
+}
+func (c *ClientConn) NextReader() (io.Reader, error) {
+	return c, nil
+}
 func (c *ClientConn) Read(bytes []byte) (n int, err error) {
 	return c.conn.Read(bytes)
+}
+
+func (c *ClientConn) Run() error {
+	return nil
 }
 
 // func (c *ClientConn) CurrentColorMap() *common.ColorMap {
@@ -469,7 +496,7 @@ FindAuth:
 	}
 	rfbSeg := &common.RfbSegment{SegmentType: common.SegmentServerInitMessage, Message: &srvInit}
 
-	return c.Listeners.Consume(rfbSeg)
+	return c.Listeners().Consume(rfbSeg)
 }
 
 // mainLoop reads messages sent from the server and routes them to the
@@ -477,7 +504,6 @@ FindAuth:
 func (c *ClientConn) mainLoop() {
 	defer c.Close()
 
-	reader := &common.RfbReadHelper{Reader: c.conn, Listeners: c.Listeners}
 	// Build the map of available server messages
 	typeMap := make(map[uint8]common.ServerMessage)
 
@@ -501,14 +527,15 @@ func (c *ClientConn) mainLoop() {
 
 	defer func() {
 		logger.Warn("ClientConn.MainLoop: exiting!")
-		c.Listeners.Consume(&common.RfbSegment{
+		c.Listeners().Consume(&common.RfbSegment{
 			SegmentType: common.SegmentConnectionClosed,
 		})
 	}()
 
 	for {
 		var messageType uint8
-		if err := binary.Read(c.conn, binary.BigEndian, &messageType); err != nil {
+		r, _ := c.Reader()
+		if err := binary.Read(r, binary.BigEndian, &messageType); err != nil {
 			logger.Errorf("ClientConn.MainLoop: error reading messagetype, %s", err)
 			break
 		}
@@ -520,6 +547,8 @@ func (c *ClientConn) mainLoop() {
 			break
 		}
 		logger.Debugf("ClientConn.MainLoop: got ServerMessage:%s", common.ServerMessageType(messageType))
+
+		reader := &common.RfbReadHelper{Reader: r, Listeners: c.Listeners()}
 		reader.SendMessageStart(common.ServerMessageType(messageType))
 		reader.PublishBytes([]byte{byte(messageType)})
 

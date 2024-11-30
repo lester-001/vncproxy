@@ -8,7 +8,6 @@ import (
 	"log"
 
 	"github.com/amitbet/vncproxy/common"
-	"github.com/gorilla/websocket"
 )
 
 type SecurityType uint8
@@ -203,15 +202,15 @@ const AUTH_FAIL = "Authentication Failure"
 func (auth *ServerAuthVNC) Auth(c common.IServerConn) error {
 	buf := make([]byte, 8+len([]byte(AUTH_FAIL)))
 	rand.Read(buf[:16]) // Random 16 bytes in buf
-	conn := c.(*ServerConn)
-	err := conn.c.WriteMessage(websocket.BinaryMessage, buf[:16])
+	_, err := c.Write(buf[:16])
 	if err != nil {
 		log.Printf("Error sending challenge to client: %s\n", err.Error())
 		return errors.New("Error sending challenge to client:" + err.Error())
 	}
 	//c.Flush()
-	messageType, buf2, err2 := conn.c.ReadMessage()
-	if err2 != nil || messageType != websocket.BinaryMessage {
+	buf2 := make([]byte, 16)
+	_, err2 := c.Read(buf2[:16])
+	if err2 != nil {
 		log.Printf("The authentication result was not read: %s\n", err.Error())
 		return errors.New("The authentication result was not read" + err.Error())
 	}
@@ -228,7 +227,7 @@ func (auth *ServerAuthVNC) Auth(c common.IServerConn) error {
 		SetUint32(buf, 0, 1)
 		SetUint32(buf, 4, uint32(len([]byte(AUTH_FAIL))))
 		copy(buf[8:], []byte(AUTH_FAIL))
-		conn.c.WriteMessage(websocket.BinaryMessage, buf)
+		c.Write(buf)
 		//c.Flush()
 		return errors.New("Authentication failed")
 	}

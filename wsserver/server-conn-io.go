@@ -1,7 +1,6 @@
 package wsserver
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -9,16 +8,11 @@ import (
 
 	"github.com/amitbet/vncproxy/common"
 	"github.com/amitbet/vncproxy/logger"
-	"github.com/gorilla/websocket"
 )
 
-type ConnectionType uint8
-
-type ServerConn struct {
-	c   *websocket.Conn
+type ServerConnIO struct {
+	c   io.ReadWriter
 	cfg *ServerConfig
-
-	ctype ConnectionType
 
 	protocol string
 	m        sync.Mutex
@@ -51,16 +45,13 @@ type ServerConn struct {
 	sessionId string
 
 	quit chan struct{}
-
-	lastRecv bytes.Buffer
-	reader   io.Reader
 }
 
 // func (c *IServerConn) UnreadByte() error {
 // 	return c.br.UnreadByte()
 // }
 
-func NewServerConn(c *websocket.Conn, cfg *ServerConfig) (*ServerConn, error) {
+func NewServerConnIO(c io.ReadWriter, cfg *ServerConfig) (*ServerConnIO, error) {
 	// if cfg.ClientMessageCh == nil {
 	// 	return nil, fmt.Errorf("ClientMessageCh nil")
 	// }
@@ -69,7 +60,7 @@ func NewServerConn(c *websocket.Conn, cfg *ServerConfig) (*ServerConn, error) {
 		return nil, fmt.Errorf("ClientMessage 0")
 	}
 
-	return &ServerConn{
+	return &ServerConnIO{
 		c: c,
 		//br:          bufio.NewReader(c),
 		//bw:          bufio.NewWriter(c),
@@ -83,21 +74,11 @@ func NewServerConn(c *websocket.Conn, cfg *ServerConfig) (*ServerConn, error) {
 	}, nil
 }
 
-func (c *ServerConn) Conn() *websocket.Conn {
+func (c *ServerConnIO) Conn() io.ReadWriter {
 	return c.c
 }
 
-func (c *ServerConn) Reader() (io.Reader, error) {
-	return c.reader, nil
-}
-
-func (c *ServerConn) NextReader() (io.Reader, error) {
-	_, r, err := c.c.NextReader()
-	c.reader = r
-	return r, err
-}
-
-func (c *ServerConn) SetEncodings(encs []common.EncodingType) error {
+func (c *ServerConnIO) SetEncodings(encs []common.EncodingType) error {
 	encodings := make(map[int32]common.IEncoding)
 	for _, enc := range c.cfg.Encodings {
 		encodings[enc.Type()] = enc
@@ -110,89 +91,87 @@ func (c *ServerConn) SetEncodings(encs []common.EncodingType) error {
 	return nil
 }
 
-func (c *ServerConn) SetProtoVersion(pv string) {
+func (c *ServerConnIO) SetProtoVersion(pv string) {
 	c.protocol = pv
 }
 
-func (c *ServerConn) SetSessionId(sessionId string) {
-	c.sessionId = sessionId
-}
-
-func (c *ServerConn) Listeners() *common.MultiListener {
+func (c *ServerConnIO) Listeners() *common.MultiListener {
 	return c.listeners
 }
 
-func (c *ServerConn) SessionId() string {
-	return c.sessionId
+func (c *ServerConnIO) Close() error {
+	return c.c.(io.ReadWriteCloser).Close()
 }
 
-func (c *ServerConn) Close() error {
-	return c.c.Close()
+func (c *ServerConnIO) Read(buf []byte) (int, error) {
+	return c.c.Read(buf)
 }
 
-func (c *ServerConn) Read(buf []byte) (int, error) {
-	_, message, err := c.c.ReadMessage()
-
-	n := copy(buf, message)
-	return n, err
+func (c *ServerConnIO) Reader() (io.Reader, error) {
+	return c.c, nil
 }
 
-func (c *ServerConn) ReadMessage() (messageType int, p []byte, err error) {
-	return c.c.ReadMessage()
+func (c *ServerConnIO) NextReader() (io.Reader, error) {
+	return c.c, nil
 }
-
-func (c *ServerConn) Write(buf []byte) (int, error) {
+func (c *ServerConnIO) Write(buf []byte) (int, error) {
 	//	c.m.Lock()
 	//	defer c.m.Unlock()
-	return 0, c.c.WriteMessage(websocket.BinaryMessage, buf)
+	return c.c.Write(buf)
 }
 
-func (c *ServerConn) WriteMessage(messageType int, buf []byte) (int, error) {
-	//	c.m.Lock()
-	//	defer c.m.Unlock()
-	return 0, c.c.WriteMessage(messageType, buf)
+func (c *ServerConnIO) WriteMessage(messageType int, buf []byte) (int, error) {
+	return 0, nil
 }
 
-func (c *ServerConn) ColorMap() *common.ColorMap {
+func (c *ServerConnIO) ColorMap() *common.ColorMap {
 	return c.colorMap
 }
 
-func (c *ServerConn) SetColorMap(cm *common.ColorMap) {
+func (c *ServerConnIO) SetColorMap(cm *common.ColorMap) {
 	c.colorMap = cm
 }
-func (c *ServerConn) DesktopName() string {
+func (c *ServerConnIO) DesktopName() string {
 	return c.desktopName
 }
-func (c *ServerConn) CurrentPixelFormat() *common.PixelFormat {
+func (c *ServerConnIO) CurrentPixelFormat() *common.PixelFormat {
 	return c.pixelFormat
 }
-func (c *ServerConn) SetDesktopName(name string) {
+func (c *ServerConnIO) SetDesktopName(name string) {
 	c.desktopName = name
 }
-func (c *ServerConn) SetPixelFormat(pf *common.PixelFormat) error {
+func (c *ServerConnIO) SetPixelFormat(pf *common.PixelFormat) error {
 	c.pixelFormat = pf
 	return nil
 }
-func (c *ServerConn) Encodings() []common.IEncoding {
+func (c *ServerConnIO) Encodings() []common.IEncoding {
 	return c.encodings
 }
-func (c *ServerConn) Width() uint16 {
+func (c *ServerConnIO) Width() uint16 {
 	return c.fbWidth
 }
-func (c *ServerConn) Height() uint16 {
+func (c *ServerConnIO) Height() uint16 {
 	return c.fbHeight
 }
-func (c *ServerConn) Protocol() string {
+func (c *ServerConnIO) Protocol() string {
 	return c.protocol
 }
-func (c *ServerConn) SetWidth(w uint16) {
+func (c *ServerConnIO) SetWidth(w uint16) {
 	c.fbWidth = w
 }
-func (c *ServerConn) SetHeight(h uint16) {
+func (c *ServerConnIO) SetHeight(h uint16) {
 	c.fbHeight = h
 }
 
-func (c *ServerConn) Run() error {
+func (c *ServerConnIO) SetSessionId(sessionId string) {
+	c.sessionId = sessionId
+}
+
+func (c *ServerConnIO) SessionId() string {
+	return c.sessionId
+}
+
+func (c *ServerConnIO) Run() error {
 
 	defer func() {
 		c.Listeners().Consume(&common.RfbSegment{
@@ -212,21 +191,18 @@ func (c *ServerConn) Run() error {
 			return nil
 		default:
 			var messageType common.ClientMessageType
-			r, err := c.NextReader()
-			if err != nil {
+			if err := binary.Read(c, binary.BigEndian, &messageType); err != nil {
+				logger.Errorf("ServerConnIO.handle error: %v", err)
 				return err
 			}
-			if err := binary.Read(r, binary.BigEndian, &messageType); err != nil {
-				logger.Errorf("ServerConn.handle error: %v", err)
-				return err
-			}
+			logger.Debugf("ServerConnIO.handle: got messagetype, %d", messageType)
 			msg, ok := clientMessages[messageType]
-			logger.Debugf("ServerConn.handle: found message type %d, %v", messageType, ok)
+			logger.Debugf("ServerConnIO.handle: found message type, %v", ok)
 			if !ok {
-				logger.Errorf("ServerConn.handle: unsupported message-type: %v", messageType)
+				logger.Errorf("ServerConnIO.handle: unsupported message-type: %v", messageType)
 			}
 			parsedMsg, err := msg.Read(c)
-			logger.Debugf("ServerConn.handle: got parsed messagetype, %v", parsedMsg)
+			logger.Debugf("ServerConnIO.handle: got parsed messagetype, %v", parsedMsg)
 			//update connection for pixel format / color map changes
 			switch parsedMsg.Type() {
 			case common.SetPixelFormatMsgType:

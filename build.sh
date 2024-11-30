@@ -32,8 +32,8 @@ ARCHS=amd64
 			suffix=".exe"
 		fi
 
-		env CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" -o ./dist/${os}_${arch}/recorder${suffix} ./recorder/cmd
-		env CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" -o ./dist/${os}_${arch}/player${suffix} ./player/cmd
+#		env CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" -o ./dist/${os}_${arch}/recorder${suffix} ./recorder/cmd
+#		env CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" -o ./dist/${os}_${arch}/player${suffix} ./player/cmd
 		env CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" -o ./dist/${os}_${arch}/proxy${suffix} ./proxy/cmd
 	
     	if $UPX; then upx -9 client_${os}_${arch}${suffix} server_${os}_${arch}${suffix};fi

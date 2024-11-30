@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+
 	"github.com/amitbet/vncproxy/common"
 )
 
@@ -25,7 +26,7 @@ type FramebufferUpdate struct {
 	Rects   []*common.Rectangle // rectangles
 }
 
-type ServerHandler func(*ServerConfig, *ServerConn) error
+type ServerHandler func(*ServerConfig, common.IServerConn) error
 
 type ServerConfig struct {
 	SecurityHandlers []SecurityHandler
@@ -107,13 +108,13 @@ func attachNewServerConn(c io.ReadWriter, cfg *ServerConfig, sessionId string) e
 		return err
 	}
 
-	conn.SessionId = sessionId
+	conn.SetSessionId(sessionId)
 	if cfg.UseDummySession {
-		conn.SessionId = "dummySession"
+		conn.SetSessionId("dummySession")
 	}
 
 	//go here will kill ws connections
-	conn.handle()
+	conn.Run()
 
 	return nil
 }

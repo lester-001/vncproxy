@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+
 	"github.com/amitbet/vncproxy/common"
 	"github.com/amitbet/vncproxy/logger"
 )
@@ -39,9 +40,9 @@ type ServerConn struct {
 	pixelFormat *common.PixelFormat
 
 	// a consumer for the parsed messages, to allow for recording and proxy
-	Listeners *common.MultiListener
+	listeners *common.MultiListener
 
-	SessionId string
+	sessionId string
 
 	quit chan struct{}
 }
@@ -69,7 +70,7 @@ func NewServerConn(c io.ReadWriter, cfg *ServerConfig) (*ServerConn, error) {
 		pixelFormat: cfg.PixelFormat,
 		fbWidth:     cfg.Width,
 		fbHeight:    cfg.Height,
-		Listeners:   &common.MultiListener{},
+		listeners:   &common.MultiListener{},
 	}, nil
 }
 
@@ -94,6 +95,18 @@ func (c *ServerConn) SetProtoVersion(pv string) {
 	c.protocol = pv
 }
 
+func (c *ServerConn) SetSessionId(sessionId string) {
+	c.sessionId = sessionId
+}
+
+func (c *ServerConn) SessionId() string {
+	return c.sessionId
+}
+
+func (c *ServerConn) Listeners() *common.MultiListener {
+	return c.listeners
+}
+
 func (c *ServerConn) Close() error {
 	return c.c.(io.ReadWriteCloser).Close()
 }
@@ -102,10 +115,21 @@ func (c *ServerConn) Read(buf []byte) (int, error) {
 	return c.c.Read(buf)
 }
 
+func (c *ServerConn) Reader() (io.Reader, error) {
+	return c, nil
+}
+func (c *ServerConn) NextReader() (io.Reader, error) {
+	return c, nil
+}
+
 func (c *ServerConn) Write(buf []byte) (int, error) {
 	//	c.m.Lock()
 	//	defer c.m.Unlock()
 	return c.c.Write(buf)
+}
+
+func (c *ServerConn) WriteMessage(messageType int, buf []byte) (int, error) {
+	return 0, nil
 }
 
 func (c *ServerConn) ColorMap() *common.ColorMap {
@@ -147,10 +171,10 @@ func (c *ServerConn) SetHeight(h uint16) {
 	c.fbHeight = h
 }
 
-func (c *ServerConn) handle() error {
+func (c *ServerConn) Run() error {
 
 	defer func() {
-		c.Listeners.Consume(&common.RfbSegment{
+		c.Listeners().Consume(&common.RfbSegment{
 			SegmentType: common.SegmentConnectionClosed,
 		})
 	}()
@@ -207,7 +231,7 @@ func (c *ServerConn) handle() error {
 				SegmentType: common.SegmentFullyParsedClientMessage,
 				Message:     parsedMsg,
 			}
-			err = c.Listeners.Consume(seg)
+			err = c.Listeners().Consume(seg)
 			if err != nil {
 				logger.Errorf("IServerConn.Handle: listener consume err %s", err.Error())
 				return err

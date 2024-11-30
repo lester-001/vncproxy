@@ -6,6 +6,9 @@ import (
 
 type IServerConn interface {
 	//IServerConn() io.ReadWriter
+
+	SetSessionId(string)
+	SessionId() string
 	Protocol() string
 	CurrentPixelFormat() *PixelFormat
 	SetPixelFormat(*PixelFormat) error
@@ -21,7 +24,16 @@ type IServerConn interface {
 	SetDesktopName(string)
 	//Flush() error
 	SetProtoVersion(string)
-	// Write([]byte) (int, error)
+	Write([]byte) (int, error)
+	WriteMessage(messageType int, buf []byte) (int, error)
+
+	Listeners() *MultiListener
+
+	Reader() (io.Reader, error)
+	NextReader() (io.Reader, error)
+	Read(buf []byte) (int, error)
+	Close() error
+	Run() error
 }
 
 type IServerConnIO interface {

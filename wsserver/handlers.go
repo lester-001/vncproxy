@@ -10,7 +10,6 @@ import (
 	"io"
 
 	"github.com/amitbet/vncproxy/logger"
-	"github.com/gorilla/websocket"
 )
 
 const ProtoVersionLength = 12
@@ -39,26 +38,20 @@ func ParseProtoVersion(pv []byte) (uint, uint, error) {
 	return major, minor, nil
 }
 
-func ServerVersionHandler(cfg *ServerConfig, c *ServerConn) error {
+func ServerVersionHandler(cfg *ServerConfig, c common.IServerConn) error {
 	var version [ProtoVersionLength]byte
 
 	c.SetProtoVersion(ProtoVersion38)
 
-	w, err := c.c.NextWriter(websocket.BinaryMessage)
+	data := bytes.Buffer{}
+	if err := binary.Write(&data, binary.BigEndian, []byte(ProtoVersion38)); err != nil {
+		return err
+	}
+
+	c.Write(data.Bytes())
+
+	r, err := c.NextReader()
 	if err != nil {
-		return err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, []byte(ProtoVersion38)); err != nil {
-		return err
-	}
-
-	if err := w.Close(); err != nil {
-		return err
-	}
-
-	messageType, r, err := c.c.NextReader()
-	if err != nil || messageType != websocket.BinaryMessage {
 		return err
 	}
 
@@ -89,42 +82,32 @@ func ServerVersionHandler(cfg *ServerConfig, c *ServerConn) error {
 	return nil
 }
 
-func ServerSecurityHandler(cfg *ServerConfig, c *ServerConn) error {
-	w, err := c.c.NextWriter(websocket.BinaryMessage)
-	if err != nil {
+func ServerSecurityHandler(cfg *ServerConfig, c common.IServerConn) error {
+
+	sec := bytes.Buffer{}
+
+	if err := binary.Write(&sec, binary.BigEndian, uint8(len(cfg.SecurityHandlers))); err != nil {
 		return err
 	}
 
-	if err := binary.Write(w, binary.BigEndian, uint8(len(cfg.SecurityHandlers))); err != nil {
-		return err
-	}
+	c.Write(sec.Bytes())
 
-	if err := w.Close(); err != nil {
-		return err
-	}
-
-	w, err = c.c.NextWriter(websocket.BinaryMessage)
-	if err != nil {
-		return err
-	}
-
+	sectypemsg := bytes.Buffer{}
 	for _, sectype := range cfg.SecurityHandlers {
-		if err := binary.Write(w, binary.BigEndian, sectype.Type()); err != nil {
+		if err := binary.Write(&sectypemsg, binary.BigEndian, sectype.Type()); err != nil {
 			return err
 		}
 	}
 
-	if err := w.Close(); err != nil {
-		return err
-	}
+	c.Write(sectypemsg.Bytes())
 
 	// if err := c.Flush(); err != nil {
 	// 	return err
 	// }
 
 	var secType SecurityType
-	messageType, r, err := c.c.NextReader()
-	if err != nil || messageType != websocket.BinaryMessage {
+	r, err := c.NextReader()
+	if err != nil {
 		return err
 	}
 
@@ -148,37 +131,27 @@ func ServerSecurityHandler(cfg *ServerConfig, c *ServerConn) error {
 		authCode = uint32(1)
 	}
 
-	w, err = c.c.NextWriter(websocket.BinaryMessage)
-	if err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.BigEndian, authCode); err != nil {
+	authcodemsg := bytes.Buffer{}
+	if err := binary.Write(&authcodemsg, binary.BigEndian, authCode); err != nil {
 		return err
 	}
 	// if err := c.Flush(); err != nil {
 	// 	return err
 	// }
 
-	if err := w.Close(); err != nil {
-		return err
-	}
-
+	c.Write(authcodemsg.Bytes())
 	if authErr != nil {
-		w, err = c.c.NextWriter(websocket.BinaryMessage)
-		if err != nil {
+
+		autherrmsg := bytes.Buffer{}
+
+		if err := binary.Write(&autherrmsg, binary.BigEndian, len(authErr.Error())); err != nil {
+			return err
+		}
+		if err := binary.Write(&autherrmsg, binary.BigEndian, []byte(authErr.Error())); err != nil {
 			return err
 		}
 
-		if err := binary.Write(w, binary.BigEndian, len(authErr.Error())); err != nil {
-			return err
-		}
-		if err := binary.Write(w, binary.BigEndian, []byte(authErr.Error())); err != nil {
-			return err
-		}
-
-		if err := w.Close(); err != nil {
-			return err
-		}
+		c.Write(autherrmsg.Bytes())
 		// if err := c.Flush(); err != nil {
 		// 	return err
 		// }
@@ -188,13 +161,13 @@ func ServerSecurityHandler(cfg *ServerConfig, c *ServerConn) error {
 	return nil
 }
 
-func ServerServerInitHandler(cfg *ServerConfig, c *ServerConn) error {
+func ServerServerInitHandler(cfg *ServerConfig, c common.IServerConn) error {
 	srvInit := &common.ServerInit{
 		FBWidth:     c.Width(),
 		FBHeight:    c.Height(),
 		PixelFormat: *c.CurrentPixelFormat(),
-		NameLength:  uint32(len(c.desktopName)),
-		NameText:    []byte(c.desktopName),
+		NameLength:  uint32(len(c.DesktopName())),
+		NameText:    []byte(c.DesktopName()),
 	}
 	logger.Debugf("Server.ServerServerInitHandler initMessage: %v", srvInit)
 
@@ -233,17 +206,7 @@ func ServerServerInitHandler(cfg *ServerConfig, c *ServerConn) error {
 	//}
 	//tightInit.WriteTo(c)
 
-	w, err := c.c.NextWriter(websocket.BinaryMessage)
-	if err != nil {
-		return err
-	}
-
-	if err := binary.Write(w, binary.BigEndian, data.Bytes()); err != nil {
-		return err
-	}
-	if err := w.Close(); err != nil {
-		return err
-	}
+	c.Write(data.Bytes())
 
 	return nil
 }
@@ -417,10 +380,10 @@ func (t *TightCapability) ReadFrom(r io.Reader) error {
 	return nil
 }
 
-func ServerClientInitHandler(cfg *ServerConfig, c *ServerConn) error {
+func ServerClientInitHandler(cfg *ServerConfig, c common.IServerConn) error {
 	var shared uint8
-	messageType, r, err := c.c.NextReader()
-	if err != nil || messageType != websocket.BinaryMessage {
+	r, err := c.NextReader()
+	if err != nil {
 		return err
 	}
 

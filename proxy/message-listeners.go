@@ -25,7 +25,7 @@ func (cc *ClientUpdater) Consume(seg *common.RfbSegment) error {
 		case common.SetPixelFormatMsgType:
 			// update pixel format
 			logger.Debugf("ClientUpdater.Consume: updating pixel format")
-			pixFmtMsg := clientMsg.(*server.MsgSetPixelFormat)
+			pixFmtMsg := clientMsg.(*wsserver.MsgSetPixelFormat)
 			cc.conn.PixelFormat = pixFmtMsg.PF
 		}
 
@@ -39,7 +39,7 @@ func (cc *ClientUpdater) Consume(seg *common.RfbSegment) error {
 }
 
 type wsServerUpdater struct {
-	conn *wsserver.ServerConn
+	conn common.IServerConn
 }
 
 func (p *wsServerUpdater) Consume(seg *common.RfbSegment) error {

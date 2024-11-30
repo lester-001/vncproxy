@@ -3,6 +3,7 @@ package wsserver
 import (
 	"fmt"
 	"log"
+	"net"
 
 	"github.com/amitbet/vncproxy/common"
 	"github.com/amitbet/vncproxy/logger"
@@ -26,7 +27,7 @@ type FramebufferUpdate struct {
 	Rects   []*common.Rectangle // rectangles
 }
 
-type ServerHandler func(*ServerConfig, *ServerConn) error
+type ServerHandler func(*ServerConfig, common.IServerConn) error
 
 type ServerConfig struct {
 	SecurityHandlers []SecurityHandler
@@ -45,7 +46,12 @@ type ServerConfig struct {
 }
 
 func wsHandlerFunc(ws *websocket.Conn, cfg *ServerConfig, sessionId string) {
-	err := attachNewServerConn(ws, cfg, sessionId)
+	conn, err := NewServerConn(ws, cfg)
+	if err != nil {
+		return
+	}
+
+	err = attachNewServerConn(conn, cfg, sessionId)
 	if err != nil {
 		log.Fatalf("Error attaching new connection. %v", err)
 	}
@@ -58,12 +64,27 @@ func WsServe(url string, cfg *ServerConfig) error {
 	return nil
 }
 
-func attachNewServerConn(c *websocket.Conn, cfg *ServerConfig, sessionId string) error {
-	conn, err := NewServerConn(c, cfg)
+func TcpServe(url string, cfg *ServerConfig) error {
+	ln, err := net.Listen("tcp", url)
 	if err != nil {
-		return err
+		log.Fatalf("Error listen. %v", err)
 	}
+	for {
+		c, err := ln.Accept()
+		if err != nil {
+			return err
+		}
+		conn, err := NewServerConnIO(c, cfg)
+		if err != nil {
+			return nil
+		}
 
+		go attachNewServerConn(conn, cfg, "dummySession")
+	}
+	return nil
+}
+
+func attachNewServerConn(conn common.IServerConn, cfg *ServerConfig, sessionId string) error {
 	if err := ServerVersionHandler(cfg, conn); err != nil {
 		fmt.Errorf("err: %v\n", err)
 		conn.Close()
@@ -77,7 +98,7 @@ func attachNewServerConn(c *websocket.Conn, cfg *ServerConfig, sessionId string)
 
 	//run the handler for this new incoming connection from a vnc-client
 	//this is done before the init sequence to allow listening to server-init messages (and maybe even interception in the future)
-	err = cfg.NewConnHandler(cfg, conn)
+	err := cfg.NewConnHandler(cfg, conn)
 	if err != nil {
 		conn.Close()
 		return err
@@ -93,13 +114,13 @@ func attachNewServerConn(c *websocket.Conn, cfg *ServerConfig, sessionId string)
 		return err
 	}
 
-	conn.SessionId = sessionId
+	conn.SetSessionId(sessionId)
 	if cfg.UseDummySession {
-		conn.SessionId = "dummySession"
+		conn.SetSessionId("dummySession")
 	}
 
 	//go here will kill ws connections
-	conn.handle()
+	conn.Run()
 
 	return nil
 }

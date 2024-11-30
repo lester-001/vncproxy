@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 
 	"github.com/amitbet/vncproxy/common"
-	"github.com/gorilla/websocket"
+	"github.com/amitbet/vncproxy/logger"
 )
 
 // Key represents a VNC key press.
@@ -37,7 +37,7 @@ func (msg *MsgSetPixelFormat) Write(c common.IServerConn) error {
 		return err
 	}
 
-	c.(*ServerConn).c.WriteMessage(websocket.BinaryMessage, data.Bytes())
+	c.Write(data.Bytes())
 	//pf := c.CurrentPixelFormat()
 	// Invalidate the color map.
 	// if pf.TrueColor {
@@ -49,11 +49,11 @@ func (msg *MsgSetPixelFormat) Write(c common.IServerConn) error {
 
 func (*MsgSetPixelFormat) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgSetPixelFormat{}
-
-	mt, r, err := c.(*ServerConn).c.NextReader()
-	if err != nil || mt != websocket.BinaryMessage {
-		return nil, err
+	r, err := c.Reader()
+	if err != nil {
+		return nil, nil
 	}
+
 	if err := binary.Read(r, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
@@ -75,21 +75,25 @@ func (*MsgSetEncodings) Read(c common.IServerConn) (common.ClientMessage, error)
 	msg := MsgSetEncodings{}
 	var pad [1]byte
 
-	mt, r, err := c.(*ServerConn).c.NextReader()
-	if err != nil || mt != websocket.BinaryMessage {
-		return nil, err
+	r, err := c.Reader()
+	if err != nil {
+		logger.Errorf("MsgSetEncodings.read: unkown reader")
+		return nil, nil
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &pad); err != nil {
+		logger.Errorf("MsgSetEncodings.read: unkown pad")
 		return nil, err
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &msg.EncNum); err != nil {
+		logger.Errorf("MsgSetEncodings.read: unkown EncNum")
 		return nil, err
 	}
 	var enc common.EncodingType
 	for i := uint16(0); i < msg.EncNum; i++ {
 		if err := binary.Read(r, binary.BigEndian, &enc); err != nil {
+			logger.Errorf("MsgSetEncodings.read: unkown enc")
 			return nil, err
 		}
 		msg.Encodings = append(msg.Encodings, enc)
@@ -120,7 +124,7 @@ func (msg *MsgSetEncodings) Write(c common.IServerConn) error {
 			return err
 		}
 	}
-	c.(*ServerConn).c.WriteMessage(websocket.BinaryMessage, data.Bytes())
+	c.Write(data.Bytes())
 	return nil
 }
 
@@ -138,10 +142,11 @@ func (*MsgFramebufferUpdateRequest) Type() common.ClientMessageType {
 func (*MsgFramebufferUpdateRequest) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgFramebufferUpdateRequest{}
 
-	mt, r, err := c.(*ServerConn).c.NextReader()
-	if err != nil || mt != websocket.BinaryMessage {
-		return nil, err
+	r, err := c.Reader()
+	if err != nil {
+		return nil, nil
 	}
+
 	if err := binary.Read(r, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
@@ -156,8 +161,7 @@ func (msg *MsgFramebufferUpdateRequest) Write(c common.IServerConn) error {
 	if err := binary.Write(&data, binary.BigEndian, msg); err != nil {
 		return err
 	}
-	conn := c.(*ServerConn)
-	conn.c.WriteMessage(websocket.BinaryMessage, data.Bytes())
+	c.Write(data.Bytes())
 	return nil
 }
 
@@ -174,10 +178,11 @@ func (*MsgKeyEvent) Type() common.ClientMessageType {
 
 func (*MsgKeyEvent) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgKeyEvent{}
-	mt, r, err := c.(*ServerConn).c.NextReader()
-	if err != nil || mt != websocket.BinaryMessage {
-		return nil, err
+	r, err := c.Reader()
+	if err != nil {
+		return nil, nil
 	}
+
 	if err := binary.Read(r, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
@@ -192,7 +197,7 @@ func (msg *MsgKeyEvent) Write(c common.IServerConn) error {
 	if err := binary.Write(&data, binary.BigEndian, msg); err != nil {
 		return err
 	}
-	c.(*ServerConn).c.WriteMessage(websocket.BinaryMessage, data.Bytes())
+	c.Write(data.Bytes())
 	return nil
 }
 
@@ -210,10 +215,11 @@ func (*MsgQEMUExtKeyEvent) Type() common.ClientMessageType {
 
 func (*MsgQEMUExtKeyEvent) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgKeyEvent{}
-	mt, r, err := c.(*ServerConn).c.NextReader()
-	if err != nil || mt != websocket.BinaryMessage {
-		return nil, err
+	r, err := c.Reader()
+	if err != nil {
+		return nil, nil
 	}
+
 	if err := binary.Read(r, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
@@ -228,7 +234,7 @@ func (msg *MsgQEMUExtKeyEvent) Write(c common.IServerConn) error {
 	if err := binary.Write(&data, binary.BigEndian, msg); err != nil {
 		return err
 	}
-	c.(*ServerConn).c.WriteMessage(websocket.BinaryMessage, data.Bytes())
+	c.Write(data.Bytes())
 	return nil
 }
 
@@ -244,11 +250,11 @@ func (*MsgPointerEvent) Type() common.ClientMessageType {
 
 func (*MsgPointerEvent) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgPointerEvent{}
-
-	mt, r, err := c.(*ServerConn).c.NextReader()
-	if err != nil || mt != websocket.BinaryMessage {
-		return nil, err
+	r, err := c.Reader()
+	if err != nil {
+		return nil, nil
 	}
+
 	if err := binary.Read(r, binary.BigEndian, &msg); err != nil {
 		return nil, err
 	}
@@ -263,7 +269,7 @@ func (msg *MsgPointerEvent) Write(c common.IServerConn) error {
 	if err := binary.Write(&data, binary.BigEndian, msg); err != nil {
 		return err
 	}
-	c.(*ServerConn).c.WriteMessage(websocket.BinaryMessage, data.Bytes())
+	c.Write(data.Bytes())
 	return nil
 }
 
@@ -293,12 +299,13 @@ func (*MsgClientCutText) Type() common.ClientMessageType {
 	return common.ClientCutTextMsgType
 }
 
-func (*MsgClientCutText) Read(conn common.IServerConn) (common.ClientMessage, error) {
+func (*MsgClientCutText) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgClientCutText{}
 	var pad [3]byte
-	mt, r, err := conn.(*ServerConn).c.NextReader()
-	if err != nil || mt != websocket.BinaryMessage {
-		return nil, err
+
+	r, err := c.Reader()
+	if err != nil {
+		return nil, nil
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &pad); err != nil {
@@ -339,7 +346,7 @@ func (msg *MsgClientCutText) Write(c common.IServerConn) error {
 		return err
 	}
 
-	c.(*ServerConn).c.WriteMessage(websocket.BinaryMessage, data.Bytes())
+	c.Write(data.Bytes())
 	return nil
 }
 
@@ -357,9 +364,9 @@ func (*MsgClientQemuExtendedKey) Type() common.ClientMessageType {
 
 func (*MsgClientQemuExtendedKey) Read(c common.IServerConn) (common.ClientMessage, error) {
 	msg := MsgClientQemuExtendedKey{}
-	mt, r, err := c.(*ServerConn).c.NextReader()
-	if err != nil || mt != websocket.BinaryMessage {
-		return nil, err
+	r, err := c.Reader()
+	if err != nil {
+		return nil, nil
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &msg); err != nil {
@@ -376,6 +383,6 @@ func (msg *MsgClientQemuExtendedKey) Write(c common.IServerConn) error {
 	if err := binary.Write(&data, binary.BigEndian, msg); err != nil {
 		return err
 	}
-	c.(*ServerConn).c.WriteMessage(websocket.BinaryMessage, data.Bytes())
+	c.Write(data.Bytes())
 	return nil
 }
